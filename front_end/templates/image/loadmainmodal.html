@@ -1,0 +1,133 @@
+
+<script src="/static/js/jstree/dist/jstree.min.js"></script>
+<div id="load_main_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="gridSystemModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="gridSystemModalLabel">加载Main文件</h4>
+      </div>
+      <div class="modal-body">
+            <div id="load_main_image_tree"></div>
+            <p id="selected_load_main_image_path_1" style="width: 100%;overflow: auto"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="load_main_image_button">
+            <span><i id="refresh_load_main_image" style="display: none" class="glyphicon glyphicon-refresh"></i></span>
+            Load
+        </button>
+      </div>
+    </div><!-- /.modal-content -->
+  </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+<script>
+    function update_load_main_tree(element_id) {
+        console.log('upload main tree' + element_id)
+        $.ajax(
+            {
+                // 更新文件树的目录
+                url:'/api/get_save_mask_path/',
+                type:'GET',
+                success:function (data) {
+                    element_id = '#' + element_id;
+                    var instance = $(element_id).jstree(true);
+                    instance.destroy()
+                    $(element_id).jstree(data['data']['json_data']);
+                    console.log(data['data']['json_data']);
+                    $(element_id).on('changed.jstree', function (e, data) {
+                        load_main_image_path = data.instance.get_node(data.selected[0]).data;
+                        $("[id^='selected_load_main_image_path_1']").html(load_main_image_path);
+
+                    })
+                },
+                error:function (error) {
+                    alert('error');
+                }
+            }
+        )
+    }
+    $().ready(function (e) {
+        // 需要对目录进行初始化
+         $('#load_main_image_tree').jstree(
+             {
+                 'core' :
+                     {
+                        'multiple':true,
+                        'data' :
+                                    [
+                                       { "id" : "ajson1", "parent" : "#", "text" : "root node" },
+                                       { "id" : "ajson2", "parent" : "#", "text" : "Root node 2" },
+                                       { "id" : "ajson3", "parent" : "ajson2", "text" : "Child 1" },
+                                       { "id" : "ajson4", "parent" : "ajson2", "text" : "Child 2" },
+                                    ]
+                     }
+             }
+         );
+        $('#open_load_main_modal_button').click(function (e) {
+            console.log('open_load_main_modal_button. click');
+            update_load_main_tree('load_main_image_tree');
+        });
+        $('#load_main_image_button').click(function (e) {
+            console.log('load math path is ' + load_main_image_path);
+            $('#refresh_load_main_image').css('display',"inline-block");
+            $.ajax(
+                {
+                    url:'/api/load_main_image/',
+                    type:'POST',
+                    data:{
+                        'selected_main_path':load_main_image_path,
+                    },
+                    success:function (data) {
+                        if(data['message'] == 'success'){
+                            var new_main_image = data['data']['main_image'];
+                            console.log(DrawParams.image_data_3D.length);
+                            console.log(DrawParams.image_data_3D[0].length);
+                            console.log(DrawParams.image_data_3D[0][0].length);
+                            console.log(new_main_image.length);
+                            console.log(new_main_image[0].length);
+                            console.log(new_main_image[0][0].length);
+                            DrawParams.image_data_3D = new_main_image;
+                            DrawParams.cur_z = 0; // 目前所处理的第几层
+                            DrawParams.size = [new_main_image.length, new_main_image[0].length, new_main_image[0][0].length];
+                            DrawParams.mask_image_3D = Tools.build_arr(DrawParams.size);
+                            ctimage.painting();
+                            $('#vertical_slider').slider({
+                                min:1,
+                                max:new_main_image.length,
+                                orientation:'vertical'
+
+                            }).slider(
+                                'pips',{
+                                    step:1
+                                }
+                            );
+                            $('#new_mask_image_button').click();
+                            console.log('load main image finish');
+                            $("[id^='selected_load_main_image_path_2']").html(load_main_image_path);
+                            $('#refresh_load_main_image').css('display',"none");
+                            alert('加载数据成功');
+                        }else{
+                            alert('error');
+                        }
+
+                    },
+                    error:function (error) {
+                        alert("error");
+                    }
+                }
+            )
+        })
+    })
+</script>
+<script src="/static/js/jqueryrotate.js"></script>
+<script>
+    //refresh load mask image
+    $().ready(function (e) {
+        var angle = 0;
+          setInterval(function(){
+              angle = (angle + 10) % 360;
+          $("#refresh_load_main_image").rotate(angle);
+          },50);
+    })
+</script>

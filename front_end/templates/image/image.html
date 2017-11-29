@@ -1,0 +1,522 @@
+<script src="/static/js/slider/js/jquery-plus-ui.min.js"></script>
+
+<script src="/static/js/slider/js/bower-libs.min.js"></script>
+
+<script src="/static/js/slider/js/jquery-ui-slider-pips.js"></script>
+
+<script src="/static/js/slider/js/helpers.js"></script>
+<script src="/static/js/slider/js/styling.js"></script>
+<script src="/static/js/slider/js/app.js"></script>
+<script src="/static/js/Tools.js"></script>
+<script>
+    var Tools = {
+        //判断xy是否合法
+        ok_xy:function(x,y){
+            if(0 <=x<512 && 0<=y<512){
+                return true;
+            }
+            return false;
+        },
+        // 根据中心坐标和半径 获得周围点的坐标
+        get_point_rect:function(cx, cy, r){
+            res = [];
+            r = parseInt(r);
+            for(var i=-r/2;i<=r/2;i++){
+                for(var j=-r/2;j<=r/2;j++){
+                    new_x = cx+i;
+                    new_y = cy+j;
+                    if(Tools.ok_xy(new_x, new_y)){
+                        res.push([parseInt(new_x), parseInt(new_y)])
+                    }
+                }
+            }
+            return res;
+        },
+        // 指定起点和终点 获得路径上的点
+        get_points:function(sourcex, sourcey, curx, cury){
+            res = [];
+            k = (1.0*(cury - sourcey)) / (1.0*(curx - sourcex));
+            res.push([sourcex, sourcey]);
+            for(var i=sourcex+1;i<curx;i++){
+                targetx = i;
+                targety = parseInt(sourcey + (1.0*k*(targetx - sourcex)));
+                res.push([targetx, targety]);
+            }
+            for(var i=curx+1;i<sourcex;i++){
+                targetx = i;
+                targety = parseInt(sourcey + (1.0*k*(targetx - sourcex)));
+                res.push([targetx, targety]);
+            }
+            for(var j=sourcey+1; j<cury;j++)
+            {
+                targety = j;
+                targetx = parseInt(sourcex + (1.0*(1.0/k)*(targety - sourcey)))
+                res.push([targetx, targety])
+            }
+            for(var j=cury+1; j<sourcey;j++)
+            {
+                targety = j;
+                targetx = parseInt(sourcex + (1.0*(1.0/k)*(targety - sourcey)))
+                res.push([targetx, targety])
+            }
+            res.push([curx, cury]);
+            return res
+        },
+        // 给定起点xy坐标和终点xy坐标、颜色和画笔的宽度，在mask画布上画出这条线
+        painting:function (sourceX, sourceY, curX, curY, ctx_mask, colors, width) {
+            points = Tools.get_points(sourceX, sourceY, curX, curY);
+            mask_image_arr = ctx_mask.getImageData(0,0,512,512);
+            for(var i=0;i<points.length;i++){
+                var point = points[i];
+                point_points = Tools.get_point_rect(point[0], point[1], width);
+                for(var j=0;j<point_points.length;j++){
+                    point_point = point_points[j];
+                    idx = (point_point[0] + point_point[1] * 512) * 4;
+                    mask_image_arr.data[idx + 0] = colors[0];
+                    mask_image_arr.data[idx + 1] = colors[1];
+                    mask_image_arr.data[idx + 2] = colors[2];
+                    mask_image_arr.data[idx + 3] = colors[3];
+                    if(colors[0]==0 && colors[1] == 0 && colors[2] == 0){
+                        DrawParams.mask_image_3D[DrawParams.cur_z][point_point[0]][point_point[1]] = 0;
+                    }else{
+                        DrawParams.mask_image_3D[DrawParams.cur_z][point_point[0]][point_point[1]] = 1;
+                    }
+                }
+            }
+            ctx_mask.putImageData(mask_image_arr, 0, 0);
+        },
+        // 根据shape 创建初始值为0的矩阵
+        build_arr:function (shape) {
+            res = new Array(shape[0]);
+            for(var i=0;i<shape[0];i++){
+                res_first = new Array(shape[1]);
+                for(var j=0;j<shape[1];j++){
+                    res_second = new Array(shape[2]);
+                    for(var z=0;z<shape[2];z++){
+                        res_second[z] = 0;
+                    }
+                    res_first[j] = res_second;
+                }
+                res[i] = res_first;
+            }
+            return res;
+        },
+        // 找到数组中不为零的下标 包括xyz
+        find_not_zero:function () {
+            res = [];
+            for(var i=0;i<DrawParams.size[0];i++){
+                for (var j=0;j<DrawParams.size[1];j++){
+                    for(var z=0;z<DrawParams.size[2];z++){
+                        if(DrawParams.mask_image_3D[i][j][z] == 1){
+                            res.push([i, j, z]);
+                        }
+                    }
+                }
+            }
+            console.log('finish find not zero');
+            return res;
+        },
+        // 将某个html元素设为可用或者不可用
+        set_disabled:function (disabled) {
+            $("[id$='button']").attr('disabled', disabled)
+        }
+    };
+</script>
+<div id="image_page_container">
+    <div>
+        <div style="width: 550px;height: 512px; float: left; position: relative;">
+            {#canvas 中width height 和 style.width height 不一样，canvas中的是原生的，而style中的是经过渲染的#}
+            <canvas id="myCanvas" style="position: absolute;top: 0px;left: 0px" width="512" height="512"></canvas>
+            <canvas id="canvas_mask" style="position: absolute;top: 0px;left: 0px;"  width="512" height="512"></canvas>
+            <div id="vertical_slider" style="display: inline-block; position: absolute;top: 0px;left: 512px;height: 512px"></div>
+        </div>
+        <div style="position: relative;">
+            <div name="buttons" id="image_page_buttons" disabled="disabled">
+                <div id="buttons_row1" style="display:block;float: left; clear: right; width: 50%;left: 510px;">
+                    <!--保存文件按钮 后期可以设置为model的模式，允许用户输入名字-->
+                    <div style="display: block" class="col-sm-12">
+                        <button
+                                class="btn btn-warning btn-sm col-sm-5"
+                                id="open_save_mask_model_button"
+                                data-toggle="modal"
+                                style="display: block"
+                                disabled
+                                data-target="#save_mask_modal">
+                            保存Mask文件
+                        </button>
+                    </div>
+
+                    <!--画囊肿的按钮-->
+                    <div style="display: block" class="col-sm-12">
+                        <button
+                                class="btn btn-warning btn-sm col-sm-5"
+                                disabled
+                                style="display: block"
+                                id="segement_cyst_button">
+                            <span><i id="refresh_cyst_tumor" style="display: none" class="glyphicon glyphicon-refresh"></i></span>
+                            切割囊肿
+                        </button>
+                    </div>
+
+                    <div style="display: block" class="col-sm-12">
+                        <button
+                                class="btn btn-warning btn-sm col-sm-5"
+                                data-toggle="modal"
+                                style="float: left"
+                                data-target="#load_mask_modal"
+                                disabled
+                                id="open_load_mask_modal_button">
+                            load Mask
+                        </button>
+                        <p id="selected_load_mask_image_path_2" class="col-sm-8" style="overflow: auto; width: 100%; display: inline-block"></p>
+                    </div>
+                    <div style="display: block" class="col-sm-12">
+                        <button
+                                class="btn btn-warning btn-sm col-sm-5"
+                                data-toggle="modal"
+                                style="float: left"
+                                data-target="#load_main_modal"
+                                disabled
+                                id="open_load_main_modal_button">
+                            load Main
+                        </button>
+                        <p id="selected_load_main_image_path_2" class="col-sm-8" style="overflow: auto; width: 100%; display: inline-block"></p>
+                    </div>
+                    <div style="display: block" class="col-sm-12">
+                        <button
+                                class="btn btn-warning btn-sm col-sm-5"
+                                style="float: left"
+                                disabled
+                                id="new_mask_image_button">
+                            New Mask
+                        </button>
+                    </div>
+                    <button class="btn btn-warning btn-sm"
+                            style="display: block">xxx</button>
+                    <button class="btn btn-warning btn-sm"
+                            style="display: block">xxx</button>
+                </div>
+            </div>
+            <div name="sliders" style="width: 200px;height: 50px; position: relative; left: 550px; top: 400px;">
+                <div id="paient_width_slider"></div>
+                <div id="color_alpha_slider"></div>
+            </div>
+            <script>
+                // 两个拖动条的初始化 画笔的透明度和宽度
+                $().ready(function () {
+                    $("#paient_width_slider")
+                    .slider({ max: 64, min:1, step:1, value: 10 })
+                    .slider("pips", {
+                    });
+                    $("#color_alpha_slider")
+                    .slider({ max: 255, min:1, step:1, value: 77 })
+                    .slider("pips", {
+                    });
+                })
+            </script>
+        </div>
+    </div>
+    <!-- 保存按钮出现的模态框 -->
+    {% include './savemodal.html' %}
+    <!-- load mask 出现的模态框 -->
+    {% include './loadmaskmodal.html' %}
+    <!-- load main 出现的模态框 -->
+    {% include './loadmainmodal.html' %}
+</div>
+<section id="pre_load_section" style="position:absolute; top: 0px; left: 0px; z-index:99;width: 100%; height: 100%; margin: 0px auto; background: #64bb5d; color: white; text-align: center; font-size: 30px">
+    <div style="MARGIN-RIGHT: auto; MARGIN-LEFT: auto; line-height:300px;">
+        <span><i id="refresh_pre_load" class="glyphicon glyphicon-refresh"></i></span>
+    </div>
+</section>
+<script src="/static/js/jqueryrotate.js"></script>
+<script>
+    //refresh load mask image
+    $().ready(function (e) {
+        var angle = 0;
+          setInterval(function(){
+              angle = (angle + 10) % 360;
+          $("#refresh_cyst_tumor").rotate(angle);
+          },50);
+          setInterval(function(){
+              angle = (angle + 10) % 360;
+          $("#refresh_pre_load").rotate(angle);
+          },50);
+
+    })
+</script>
+<script>
+    function get_main_images(addresses) {
+        console.log('addresses is ' + addresses);
+        load_main_image_path = addresses[0];
+        $.ajax(
+            {
+                url:'/api/get_main_images/',
+                type:'POST',
+                data:{
+                    'data':JSON.stringify({
+                        'addresses':addresses
+                    }),
+                },
+                success:function (data) {
+                    if(data['message'] != 'success'){
+                        alert('error');
+                        return;
+                    }
+                    var main_images = data['data']['main_images'];
+                    var main_image = main_images[0];
+                    DrawParams.cur_z = 0; // 目前所处理的第几层
+                    DrawParams.image_data_3D = main_image;  // 获得第一个数据，目前默认只有一个数据
+                    DrawParams.size = [main_image.length, main_image[0].length, main_image[0][0].length];
+                    DrawParams.mask_image_3D = Tools.build_arr(DrawParams.size);
+                    ctimage = new CTImage();
+                    ctimage.init('myCanvas');
+                    ctimage.painting();
+                    //纵向滚动条
+                    $('#vertical_slider').slider({
+                        min:1,
+                        max:main_image.length,
+                        orientation:'vertical'
+                    }).slider(
+                        'pips',{
+                            step:1
+                        }
+                    );
+
+                    $('#vertical_slider').on('slidechange', function (e, ui) {
+                        console.log('vertical value change ' + $('#vertical_slider').slider('value'));
+                        DrawParams.cur_z = $('#vertical_slider').slider('value')-1;
+                        ctimage.painting();
+                        mask_image.painting();
+
+                    });
+                    $('#pre_load_section').css('display',"none");
+                    $('#image_page_container').css('display','block');
+
+                },
+                error:function (errpr) {
+                    alert('发生错误');
+                }
+            }
+        )
+    }
+    // 画图的js
+    $().ready(function () {
+        // 后台传递过来的数据
+        var my_list = {{ data|safe }};
+        console.log('data is ' + my_list);
+        addresses = my_list['addresses'];
+        console.log('addresses is ' + addresses);
+        get_main_images(addresses);
+
+
+        Tools.set_disabled(false)
+    });
+</script>
+<script>
+    // 画笔的js
+    function CTImage() {
+        this.canvas_id = null;
+        this.init = function (id) {
+            this.canvas_id = id
+        };
+        this.painting = function () {
+            if(this.canvas_id == null){
+                alert('canvas id is null');
+                return;
+            }
+            var c = document.getElementById(this.canvas_id);
+            var ctx = c.getContext('2d');
+            image_arr = DrawParams.image_data_3D[DrawParams.cur_z];
+            canvas_data = ctx.getImageData(0, 0, 512, 512);
+            for(var i=0;i<512;i++){
+                for(var j=0;j<512;j++){
+                    //gray = parseInt(Math.random()*255);
+                    idx = (i + j*512)*4;
+                    gray=parseInt(image_arr[j][i]);
+                    canvas_data.data[idx] = gray;
+                    canvas_data.data[idx + 1] = gray;
+                    canvas_data.data[idx + 2] = gray;
+                    canvas_data.data[idx + 3] = 255
+
+                }
+            }
+            ctx.putImageData(canvas_data, 0, 0)
+        }
+    }
+    function MaskImage(){
+        this.canvas_id = null;
+        this.init = function(id, width){
+            this.canvas_id = id;
+            DrawParams.width = width;
+        };
+        this.get_mask_context = function () {
+            var c_mask = document.getElementById(this.canvas_id);
+            var ctx_mask = c_mask.getContext('2d');
+            return ctx_mask;
+        };
+        this.startBind = function(){
+            if(this.canvas_id == null){
+                alert('canvas id not init');
+                return ;
+            }
+            var c_mask = document.getElementById(this.canvas_id);
+            var ctx_mask = c_mask.getContext('2d');
+            ctx_mask.fillStyle = 'rgba(0,255,0,0.3)';
+            var mask_rect = c_mask.getBoundingClientRect();
+            var mask_left = mask_rect.left;
+            var mask_top = mask_rect.top;
+            c_mask.addEventListener("mousewheel", function (e) {
+                e.stopPropagation();
+                e.preventDefault();
+                if(e.wheelDelta<0){
+                    $('#vertical_slider').slider({
+                        value:$('#vertical_slider').slider('value')-1
+                    });
+                }else{
+                    $('#vertical_slider').slider({
+                        value:$('#vertical_slider').slider('value')+1
+                    });
+                }
+                return false;
+            }, false);
+            c_mask.onmousedown = function (e) {
+                sourceX = e.clientX - mask_left;
+                sourceY = e.clientY - mask_top;
+                console.log('eclient', e.clientX, e.clientY);
+                console.log('mask position', mask_left, mask_top);
+                console.log('source', sourceX, sourceY);
+                if(e.button == 1){
+                    c_mask.onmousemove = function (e) {
+                        var curX = e.clientX - mask_left;
+                        var curY = e.clientY - mask_top;
+                        console.log('c mask_move');
+                        Tools.painting(sourceX, sourceY, curX, curY, ctx_mask, [0, 0, 0, 0], DrawParams.width);
+                        sourceX = curX;
+                        sourceY = curY;
+                        return false;
+                    };
+                    ctx_mask.stroke();
+                    return false;
+                }else{
+                    c_mask.onmousemove = function (e) {
+                        var curX = e.clientX - mask_left;
+                        var curY = e.clientY - mask_top;
+                        Tools.painting(sourceX, sourceY, curX, curY, ctx_mask, [0, 255, 0, DrawParams.alpha], DrawParams.width);
+                        sourceX = curX;
+                        sourceY = curY;
+                        return false;
+                    };
+                    ctx_mask.stroke();
+                }
+            };
+            c_mask.onmouseup=function(e){
+                c_mask.onmousemove=null;
+            }
+        };
+        this.painting = function () {
+            if(this.canvas_id == null){
+                alert('canvas id is null');
+                return;
+            }
+            var c = document.getElementById(this.canvas_id);
+            var ctx = c.getContext('2d');
+            image_arr = DrawParams.mask_image_3D[DrawParams.cur_z];
+            canvas_data = ctx.getImageData(0, 0, 512, 512);
+            for(var i=0;i<512;i++){
+                for(var j=0;j<512;j++){
+                    //gray = parseInt(Math.random()*255);
+                    idx = (i + j*512)*4;
+                    gray=parseInt(image_arr[i][j]);
+                    if(gray == 1){
+                        canvas_data.data[idx] = 0;
+                        canvas_data.data[idx + 1] = 255;
+                        canvas_data.data[idx + 2] = 0;
+                        canvas_data.data[idx + 3] = DrawParams.alpha;
+                    }else{
+                        canvas_data.data[idx] = 0;
+                        canvas_data.data[idx + 1] = 0;
+                        canvas_data.data[idx + 2] = 0;
+                        canvas_data.data[idx + 3] = 0
+                    }
+                }
+            }
+            ctx.putImageData(canvas_data, 0, 0)
+        };
+        this.update_mask_alpha = function (new_alpha_value) {
+            var c_mask = document.getElementById(this.canvas_id);
+            var ctx_mask = c_mask.getContext('2d');
+            mask_image_arr = ctx_mask.getImageData(0,0,512,512);
+            for(var i=0;i<mask_image_arr.data.length;i+=4){
+                if(mask_image_arr.data[i] == 0 && mask_image_arr.data[i + 1] == 0 && mask_image_arr.data[i + 2] == 0){
+
+                }else{
+                    mask_image_arr.data[i+3] = new_alpha_value;
+                }
+            }
+            ctx_mask.putImageData(mask_image_arr, 0, 0);
+        };
+    }
+    $().ready(function () {
+        mask_image = new MaskImage();
+        mask_image.init('canvas_mask',10);
+        mask_image.startBind(mask_image.paintWidth);
+        $('#paient_width_slider').on('slidechange', function(e, ui){
+            DrawParams.width = parseInt($('#paient_width_slider').slider("value"));
+        });
+        $('#color_alpha_slider').on('slidechange', function(e, ui){
+            cur_alpha = parseInt($('#color_alpha_slider').slider('value'));
+            DrawParams.alpha = cur_alpha;
+            mask_image.update_mask_alpha(cur_alpha);
+        });
+    })
+</script>
+<!--
+    button 响应事件
+-->
+<script>
+    $().ready(function () {
+        // 囊肿的切割
+        $('#segement_cyst_button').click(function (e) {
+            console.log('segement_cyst click');
+            $('#refresh_cyst_tumor').css('display',"inline-block");
+
+            $.ajax(
+                {
+                    url:'/api/segement_cyst/',
+                    type:'POST',
+                    data:{
+                        'mask_image':JSON.stringify(Tools.find_not_zero()),
+                        'load_main_image_path':load_main_image_path,
+                    },
+                    success:function(data){
+                        if(data['message'] == 'success'){
+                            var new_mask_image = data['data']['mask_image'];
+
+                            console.log(DrawParams.mask_image_3D.length);
+                            console.log(DrawParams.mask_image_3D[0].length);
+                            console.log(DrawParams.mask_image_3D[0][0].length);
+                            console.log(new_mask_image.length);
+                            console.log(new_mask_image[0].length);
+                            console.log(new_mask_image[0][0].length);
+                            DrawParams.mask_image_3D = new_mask_image;
+                            mask_image.painting();
+                            $('#refresh_cyst_tumor').css('display',"none");
+                            alert('囊肿切割成功')
+                        }else{
+                            alert('Error');
+                        }
+                    },
+                    error:function(e){
+                        alert('Error');
+                    }
+                }
+            )
+        });
+        $('#new_mask_image_button').click(function (e) {
+            DrawParams.mask_image_3D = Tools.build_arr(DrawParams.size);
+            $('#selected_load_mask_image_path_2').html('');
+            mask_image.painting();
+            alert('创建新Mask文件成功');
+        })
+    })
+</script>

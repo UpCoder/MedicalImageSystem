@@ -1,0 +1,27 @@
+<div>
+    <div class="panel panel-primary">
+        <div class="panel-heading">
+            xxxx
+        </div>
+        <div class="panel-body">
+            <div class="row">
+                <form class="col-sm-12">
+                    <div class="col-sm-3" style="float: left">
+                        <input type="search" class="form-control" placeholder="search" id="search_input"/>
+
+                    </div>
+                    <div class="col-sm-3" style="float: right;">
+                        <button type="button"
+                                class="btn btn-sm btn-success"
+                                data-toggle="modal"
+                                data-target="#add_modal">
+                            <span class="glyphicon glyphicon-plus"></span> Add
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% include './datatable.html' %}
+        </div>
+    </div>
+</div>
+{% include './addmodal.html' %}

@@ -1,0 +1,272 @@
+<script>
+    select_file_adress = [];
+    my_check_pk = null;
+    start_index = 1; // 当前处于第几页
+    per_page_num = 5; // 每页有几个数据
+    query_table_data_url = '/api/get_check_data/';
+    function get_file_construction_json(check_pk) {
+        // 获取文件结构
+        my_check_pk = check_pk;
+        GET_FILE_CONSTRUCTION_URL = '/api/get_file_construction_json/';
+        $.ajax(
+            {
+                url:GET_FILE_CONSTRUCTION_URL,
+                data:{
+                    'check_pk':check_pk
+                },
+                type:'GET',
+                success:function (data) {
+                    var instance = $('#file_tree').jstree(true);
+                    instance.destroy()
+                    $('#file_tree').jstree(data['data']['json_data']);
+                    $('#file_tree').on('changed.jstree', function (e, data) {
+                        values = []
+                        select_file_adress = []
+                        for(i=0;i<data.selected.length;i++){
+                            values.push(
+                                $("<p>" +
+                                    data.instance.get_node(data.selected[i]).data +
+                                    "</p>")
+                            );
+                            select_file_adress.push(
+                                data.instance.get_node(data.selected[i]).data
+                            )
+                        }
+                        $('#select_file').html(values)
+                    });
+                },
+                error:function (error) {
+                    alert('error')
+                }
+            }
+        )
+    }
+    function delete_check_by_pk(pk) {
+        if(window.confirm('确定删除吗？')){
+            $.ajax(
+                {
+                    url:'/api/delete_check_by_pk/',
+                    type:'POST',
+                    data:{
+                        'pk':pk
+                    },
+                    success:function (data) {
+                        if(data['message'] == 'success'){
+                            update_table();
+                            alert('删除成功');
+                        }else{
+                            alert('删除失败');
+                        }
+                    },
+                    error:function (error) {
+                        alert('删除失败');
+                    }
+                }
+            )
+        }else{
+
+        }
+    }
+    function view_button_click(id) {
+        get_file_construction_json(id)
+    }
+    function pre_next_button_state(page_num) {
+        if(start_index == 1){
+            $('#table_previous').addClass('disabled')
+        }else{
+            $('#table_previous').removeClass('disabled')
+        }
+        if(start_index == page_num){
+            $('#table_next').addClass('disabled')
+        }else{
+            $('#table_next').removeClass('disabled')
+        }
+    }
+    function next_page() {
+        alert('click_next');
+        start_index += 1;
+        update_table();
+    }
+    function previous_page() {
+        start_index -= 1;
+        update_table();
+    }
+    function update_table() {
+        $('#check_table_body tr').remove()
+        query_params = {};
+        query_params['start_index'] = start_index;
+        query_params['per_page_num'] = per_page_num;
+        var flag = false;
+        $.ajax(
+            {
+                url:query_table_data_url,
+                data:query_params,
+                type:'POST',
+                success:function (data) {
+                    if(data['message'] == 'success'){
+                        data = data['data']  // receive data
+                        page_num = data['page_num'];
+                        pre_next_button_state(page_num)
+                        cur_data = JSON.parse(data['cur_data']);
+                        for(var i=0;i<cur_data.length; i++){
+                            var tr_element=$(
+                                "<tr>" +
+                                    "<td>" + cur_data[i]['fields']['check_id'] +"</td>" +
+                                    "<td>" + cur_data[i]['fields']['upload_username'] +"</td>" +
+                                    "<td>" + cur_data[i]['fields']['save_path'] +"</td>" +
+                                    "<td>" +
+                                        "<button onclick='view_button_click("+ cur_data[i]['pk'] +")' id='button_view_" + cur_data[i]['pk'] +"' class='btn btn-sm btn-info'>" +
+                                            "<i class='glyphicon glyphicon-eye-open'></i>" +
+                                        "</button>" +
+                                        "<button onclick='delete_check_by_pk(" + cur_data[i]['pk'] + ")' id='button_delete_" + cur_data[i]['pk'] +"' class='btn btn-sm btn-danger'>" +
+                                            "<i class='glyphicon glyphicon-trash'></i>" +
+                                        "</button>" +
+                                    "</td>"+
+                                "</tr>"
+                            );
+                            if(flag == false){
+                                get_file_construction_json(cur_data[i]['pk']);
+                                flag = true;
+                            }
+                            $('#check_table_body').append(tr_element);
+                        }
+                    }else{
+                        alert('error')
+                    }
+
+                },
+                error:function (error) {
+                    alert('error')
+                }
+
+            }
+        )
+    }
+    $().ready(function () {
+        update_table()
+    })
+</script>
+<div class="table-responsive">
+    <table class="table table-hover table-bordered">
+        <thead>
+            <tr>
+                <td>病例ID</td>
+                <td>上传者</td>
+                <td>存储路径</td>
+                <td>操作</td>
+            </tr>
+        </thead>
+        <tbody id="check_table_body">
+
+        </tbody>
+    </table>
+    <nav aria-label="...">
+        <ul class="pager">
+            <li id="table_previous" onclick="previous_page()"><a href="#">Previous</a></li>
+            <li>1</li>
+            <li id="table_next" onclick="next_page()"><a href="#">Next</a></li>
+        </ul>
+    </nav>
+</div>
+<script>
+    $().ready(function () {
+         $('#file_tree').jstree({ 'core' : {
+             'multiple':true,
+    'data' : [
+       { "id" : "ajson1", "parent" : "#", "text" : "root node" },
+       { "id" : "ajson2", "parent" : "#", "text" : "Root node 2" },
+       { "id" : "ajson3", "parent" : "ajson2", "text" : "Child 1" },
+       { "id" : "ajson4", "parent" : "ajson2", "text" : "Child 2" },
+    ]
+} })
+
+    })
+</script>
+<div id="file_tree">
+
+</div>
+{# 显示选中的文件的路径 #}
+<div id="select_file">
+
+</div>
+{# 可以对数据进行的操作#}
+<script>
+    $().ready(function () {
+        $('#button_view').click(function (event) {
+            $.ajax(
+                {
+                    url:'/api/save_image_address_cookie/',
+                    type:'POST',
+                    data:{
+                        'adresses':JSON.stringify(select_file_adress)
+                    },
+                    success:function (data) {
+                        if(data['message'] == 'success'){
+                            window.location.href = 'http://127.0.0.1:8000/webApp/image'
+                        }
+                    },
+                    error:function (error) {
+                        alert('error')
+                    }
+                }
+            )
+        });
+        $('#button_delete_path').click(function(event){
+            if(window.confirm('确定删除吗？')){
+                    $.ajax(
+                    {
+                        url:'/api/delete_path/',
+                        type:'POST',
+                        data:{
+                            'addresses':JSON.stringify(select_file_adress)
+                        },
+                        success:function(data){
+                            if(data['message'] == 'success'){
+                                get_file_construction_json(my_check_pk);
+                                alert('删除成功');
+                            }else{
+                                alert('删除失败');
+                            }
+                        },
+                        error:function(error){
+                            alert('error');
+                        }
+                    }
+                )
+            }
+        })
+        $("#button_classification").click(function (event) {
+            $.ajax(
+                {
+                    url:'/api/save_image_address_cookie/',
+                    type:'POST',
+                    data:{
+                        'adresses':JSON.stringify(select_file_adress)
+                    },
+                    success:function (data) {
+                        if(data['message'] == 'success'){
+                            window.location.href = 'http://127.0.0.1:8000/webApp/classification'
+                        }
+                    },
+                    error:function (error) {
+                        alert('error')
+                    }
+                }
+            )
+        })
+    })
+</script>
+<div id="operations">
+    <button id="button_view" class="btn btn-sm btn-warning">
+        <i class="glyphicon glyphicon-eye-open"></i>
+        View
+    </button>
+    <button id="button_classification" class="btn btn-sm btn-info">
+        <i class="glyphicon glyphicon-eye-open"></i>
+        Classification
+    </button>
+    <button id="button_delete_path" class="btn btn-sm btn-danger">
+        <i class='glyphicon glyphicon-trash'></i>
+        Delete
+    </button>
+</div>

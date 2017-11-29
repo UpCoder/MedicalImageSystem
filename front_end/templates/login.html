@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>三维医学CT扫描图像检索系统 v1.0 beta</title>
+    <link rel="stylesheet" type="text/css" href="/static/css/base.css">
+    <link rel="stylesheet" type="text/css" href="/static/css/login.css"/>
+    <link rel="stylesheet" type="text/css" href="/static/css/bootstrap.min.css"/>
+
+    <script src="/static/js/jquery.js"></script>
+    <script src="/static/js/cookie.js"></script>
+    <script src="/static/js/jscookie.js"></script>
+    <script src="/static/js/bootstrap.min.js"></script>
+</head>
+<script>
+    function csrfSafeMethod(method) {
+        // these HTTP methods do not require CSRF protection
+        return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+    }
+    $.ajaxSetup({
+        beforeSend: function(xhr, settings) {
+            if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
+                xhr.setRequestHeader("X-CSRFToken", csrftoken);
+            }
+        }
+    });
+    $().ready(function(){
+        $('#submit').click(function(){
+            var csrftoken = Cookies.get('csrftoken');
+           $.post('/api/login/',{
+                username:$('#username').val(),
+                password:$('#password').val(),
+            },function callback(result){
+                if(result['message'] == 'error')
+                {
+                    alert('账号密码错误');
+                }else{
+                    window.location.href='http://127.0.0.1:8000'+result['url'];
+                }
+            });
+
+        })
+    });
+    function login() {
+        $.post('/api/login/',{
+            username:$('#username').val(),
+            password:$('#password').val(),
+        },function callback(result){
+            alert(JSON.stringify(result));
+        });
+    }
+
+</script>
+<body class="loginBg">
+    <header class="header">
+        三维医学CT扫描图像检索系统 <small>v1.0 beta</small>
+    </header>
+    <div class="loginForm">
+        <div class="loginFormBG"></div>
+        <div>
+            <h3>图像检索</h3>
+            <p>v1.0 beta</p>
+        </div>
+        <form id="trueForm" class="form-inline row" method="post" action="/api/login/" onsubmit="return true">
+            {% csrf_token %}
+            <div class="form-group">
+
+                <div class="col-sm-5">
+                    <input type="text"
+                           placeholder="请输入用户名"
+                           class="form-control"
+                           id="username"
+                           name="username"/>
+                </div>
+            </div>
+            <div class="form-group">
+                <div >
+                    <input type="password"
+                           class="form-control col-sm-5"
+                           id="password"
+                           name="password"/>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="col-sm-12">
+                    <input id="submit" type="button" class="btn btn-success col-sm-10" style="width: 200px" value="登录"></input>
+                </div>
+            </div>
+        </form>
+    </div>
+    <footer>浙江大学计算机科学与技术学院©</footer>
+</body>
+</html>

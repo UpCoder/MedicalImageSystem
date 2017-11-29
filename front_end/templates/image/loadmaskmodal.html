@@ -1,0 +1,116 @@
+
+<script src="/static/js/jstree/dist/jstree.min.js"></script>
+<div id="load_mask_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="gridSystemModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="gridSystemModalLabel">加载Mask文件</h4>
+      </div>
+      <div class="modal-body">
+            <div id="load_mask_image_tree"></div>
+            <p id="selected_load_mask_image_path_1" style="width: 100%;overflow: auto"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="load_mask_image_button">
+            <span><i id="refresh_load_mask_image" style="display: none" class="glyphicon glyphicon-refresh"></i></span>
+            Load
+        </button>
+      </div>
+    </div><!-- /.modal-content -->
+  </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+<script>
+    function update_load_mask_tree(element_id) {
+        $.ajax(
+            {
+                // 更新文件树的目录
+                url:'/api/get_save_mask_path/',
+                type:'GET',
+                success:function (data) {
+                    element_id = '#' + element_id
+                    var instance = $(element_id).jstree(true);
+                    instance.destroy()
+                    $(element_id).jstree(data['data']['json_data']);
+                    $(element_id).on('changed.jstree', function (e, data) {
+                        load_mask_image_path = data.instance.get_node(data.selected[0]).data;
+                        $("[id^='selected_load_mask_image_path_1']").html(load_mask_image_path);
+
+                    })
+                },
+                error:function (error) {
+                    alert('error');
+                }
+            }
+        )
+    }
+    $().ready(function (e) {
+        // 需要对目录进行初始化
+         $('#load_mask_image_tree').jstree(
+             {
+                 'core' :
+                     {
+                        'multiple':true,
+                        'data' :
+                                    [
+                                       { "id" : "ajson1", "parent" : "#", "text" : "root node" },
+                                       { "id" : "ajson2", "parent" : "#", "text" : "Root node 2" },
+                                       { "id" : "ajson3", "parent" : "ajson2", "text" : "Child 1" },
+                                       { "id" : "ajson4", "parent" : "ajson2", "text" : "Child 2" },
+                                    ]
+                     }
+             }
+         );
+        $('#open_load_mask_modal_button').click(function (e) {
+            update_load_mask_tree('load_mask_image_tree');
+        });
+        $('#load_mask_image_button').click(function (e) {
+            console.log('load math path is ' + load_mask_image_path);
+            $('#refresh_load_mask_image').css('display',"inline-block");
+            $.ajax(
+                {
+                    url:'/api/load_mask_image/',
+                    type:'POST',
+                    data:{
+                        'selected_mask_path':load_mask_image_path,
+                    },
+                    success:function (data) {
+                        if(data['message'] == 'success'){
+                            var new_mask_image = data['data']['mask_image'];
+                            console.log(DrawParams.mask_image_3D.length);
+                            console.log(DrawParams.mask_image_3D[0].length);
+                            console.log(DrawParams.mask_image_3D[0][0].length);
+                            console.log(new_mask_image.length);
+                            console.log(new_mask_image[0].length);
+                            console.log(new_mask_image[0][0].length);
+                            DrawParams.mask_image_3D = new_mask_image;
+                            mask_image.painting();
+                            console.log('load_mask_image finish');
+                            $("[id^='selected_load_mask_image_path_2']").html(load_mask_image_path);
+                            $('#refresh_load_mask_image').css('display',"none");
+                            alert('加载数据成功');
+                        }else{
+                            alert('error');
+                        }
+
+                    },
+                    error:function (error) {
+                        alert("error");
+                    }
+                }
+            )
+        })
+    })
+</script>
+<script src="/static/js/jqueryrotate.js"></script>
+<script>
+    //refresh load mask image
+    $().ready(function (e) {
+        var angle = 0;
+          setInterval(function(){
+              angle = (angle + 10) % 360;
+          $("#refresh_load_mask_image").rotate(angle);
+          },50);
+    })
+</script>

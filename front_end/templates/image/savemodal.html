@@ -1,0 +1,171 @@
+
+<script src="/static/js/jstree/dist/jstree.min.js"></script>
+<div id="save_mask_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="gridSystemModalLabel">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="gridSystemModalLabel">保存Mask文件</h4>
+      </div>
+      <div class="modal-body">
+            <div id="save_mask_image_tree"></div>
+            <div class="form-group">
+                <!--新建文件夹-->
+                <input type="text" class="form-control" placeholder="new folder name" id="input_new_folder_name"/>
+                <button type="button" class="btn btn-sm btn-success" id="create_new_folder">创建</button>
+                <p id="create_new_folder_result"></p>
+            </div>
+            <div class="form-group">
+                <input type="text" placeholder="请输入存储路径" class="form-control" id="save_mask_image_path"/>
+                <button type="button" class="btn btn-sm btn-primary" id="save_mask_image_button">
+                    <span><i id="refresh_save_mask_image" style="display: none" class="glyphicon glyphicon-refresh"></i></span>
+                    保存
+                </button>
+                <p id="save_mask_image_result"></p>
+            </div>
+
+      </div>
+
+    </div><!-- /.modal-content -->
+  </div><!-- /.modal-dialog -->
+</div><!-- /.modal -->
+<script>
+    function cout_message(successed, element_id, message) {
+        $('#'+element_id).removeClass();  //移除所有的class
+        if(successed){
+            $('#'+element_id).addClass('text-success');
+        }else{
+            $('#'+element_id).addClass('text-danger');
+        }
+        $('#'+element_id).html(message)
+    }
+    function update_save_mask_image_tree(element_id, show_select_element_id, type) {
+        $.ajax(
+            {
+                // 更新文件树的目录
+                url:'/api/get_save_mask_path/',
+                type:'GET',
+                success:function (data) {
+                    element_id = '#' + element_id
+                    var instance = $(element_id).jstree(true);
+                    instance.destroy()
+                    $(element_id).jstree(data['data']['json_data']);
+                    $(element_id).on('changed.jstree', function (e, data) {
+                        save_mask_image_path = data.instance.get_node(data.selected[0]).data;
+                        if(show_select_element_id != null){
+                            if(type == 'input'){
+                                $('#' + show_select_element_id).val(save_mask_image_path);
+                            }else{
+                                $('#' + show_select_element_id).html(save_mask_image_path);
+                            }
+                        }
+
+
+                    })
+                },
+                error:function (error) {
+                    alert('error');
+                }
+            }
+        )
+    }
+    $().ready(function () {
+         // 需要对目录进行初始化
+         $('#save_mask_image_tree').jstree(
+             {
+                 'core' :
+                     {
+                        'multiple':true,
+                        'data' :
+                                    [
+                                       { "id" : "ajson1", "parent" : "#", "text" : "root node" },
+                                       { "id" : "ajson2", "parent" : "#", "text" : "Root node 2" },
+                                       { "id" : "ajson3", "parent" : "ajson2", "text" : "Child 1" },
+                                       { "id" : "ajson4", "parent" : "ajson2", "text" : "Child 2" },
+                                    ]
+                     }
+             }
+         );
+        $('#open_save_mask_model_button').click(function (e) {
+            // 响应保存按钮时间
+            update_save_mask_image_tree('save_mask_image_tree', 'save_mask_image_path', 'input')
+        });
+    });
+    $('#create_new_folder').click(function (e) {
+        // 响应保存按钮事件
+        // 创建的新目录就是select_dir／new_folder_name
+        console.log('create new folder click');
+        $.ajax(
+            {
+                url:'/api/create_new_folder/',
+                type:'POST',
+                data:{
+                    'select_dir':$('#save_mask_image_path').val(),
+                    'new_folder_name':$('#input_new_folder_name').val(),
+                },
+                success:function (data) {
+                    if(data['message'] == 'success'){
+                        var instance = $('#save_mask_image_tree').jstree(true);
+                        instance.destroy()
+                        $('#save_mask_image_tree').jstree(data['data']['json_data']);
+                        $('#save_mask_image_tree').on('changed.jstree', function (e, data) {
+                            save_mask_image_path = data.instance.get_node(data.selected[0]).data;
+                            $('#save_mask_image_path').val(save_mask_image_path);
+                        });
+                        cout_message(true, 'create_new_folder_result', '创建文件夹成功');
+                    }else{
+                        cout_message(false, 'create_new_folder_result', '创建文件夹失败');
+                    }
+                },
+                error:function (error) {
+                    cout_message(false, 'create_new_folder_result', '创建文件夹失败');
+                }
+            }
+        )
+    });
+    $('#save_mask_image_button').click(function (e) {
+        console.log('save_mask button click');
+        $('#refresh_save_mask_image').css('display',"inline-block");
+        $.ajax(
+            {
+                url:'/api/save_mask/',
+                type:'POST',
+                data:{
+                    'mask_image':JSON.stringify(Tools.find_not_zero()),
+                    'mask_shape':JSON.stringify(DrawParams.size),
+                    'save_path':$('#save_mask_image_path').val(),
+                },
+                success:function(data){
+                    if(data['message'] == 'success'){
+                        var instance = $('#save_mask_image_tree').jstree(true);
+                        instance.destroy()
+                        $('#save_mask_image_tree').jstree(data['data']['json_data']);
+                        $('#save_mask_image_tree').on('changed.jstree', function (e, data) {
+                            save_mask_image_path = data.instance.get_node(data.selected[0]).data;
+                            $('#save_mask_image_path').val(save_mask_image_path);
+                        });
+                        $('#refresh_save_mask_image').css('display',"none");
+                        cout_message(true, 'save_mask_image_result', '保存成功');
+                    }else{
+                        cout_message(false, 'save_mask_image_result', '保存失败');
+                    }
+
+                },
+                error:function(error){
+                    cout_message(false, 'save_mask_image_result', '保存失败');
+                }
+            }
+        )
+    });
+</script>
+<script src="/static/js/jqueryrotate.js"></script>
+<script>
+    //refresh load mask image
+    $().ready(function (e) {
+        var angle = 0;
+          setInterval(function(){
+              angle = (angle + 10) % 360;
+          $("#refresh_save_mask_image").rotate(angle);
+          },50);
+    })
+</script>
